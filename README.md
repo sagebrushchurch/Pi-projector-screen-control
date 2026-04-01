@@ -46,6 +46,14 @@ Pin 13  (GPIO27)──────►  IN2  (DOWN relay trigger)
 git clone https://github.com/sagebrushchurch/Pi-projector-screen-control.git
 cd Pi-projector-screen-control
 
+# Create a virtual environment
+# --system-site-packages is required so the venv can access RPi.GPIO,
+# which is pre-installed as a system package on Raspberry Pi OS
+python3 -m venv --system-site-packages venv
+
+# Activate the virtual environment
+source venv/bin/activate
+
 # Install Python dependencies
 pip install -r requirements.txt
 ```
@@ -53,6 +61,9 @@ pip install -r requirements.txt
 ### Running the server
 
 ```bash
+# Activate the virtual environment (if not already active)
+source venv/bin/activate
+
 python app.py
 ```
 
@@ -69,7 +80,7 @@ Description=Projector Screen Control
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/Pi-projector-screen-control/app.py
+ExecStart=/home/pi/Pi-projector-screen-control/venv/bin/python /home/pi/Pi-projector-screen-control/app.py
 WorkingDirectory=/home/pi/Pi-projector-screen-control
 Restart=always
 User=pi
