@@ -1,20 +1,24 @@
 """
 Projector Screen Control
 ------------------------
-Flask web application that controls a motorised projector screen via two
+Flask web application that controls motorised projector screens via four
 relays connected to a Raspberry Pi.
 
 Relay wiring (BCM numbering):
-  UP   relay trigger → GPIO 17  (physical pin 11)
-  DOWN relay trigger → GPIO 27  (physical pin 13)
-  VCC  (both relays) → 5 V rail (physical pin 2 or 4)
-  GND  (both relays) → Ground   (physical pin 6, 9, 14 or 20)
+  North UP   relay trigger → GPIO 17  (physical pin 11)
+  North DOWN relay trigger → GPIO 27  (physical pin 13)
+  South UP   relay trigger → GPIO 22  (physical pin 15)
+  South DOWN relay trigger → GPIO 23  (physical pin 16)
+  VCC  (all relays) → 5 V rail (physical pin 2 or 4)
+  GND  (all relays) → Ground   (physical pin 6, 9, 14 or 20)
 
 Each relay is energised for RELAY_PULSE_SECONDS (default 1 s) then released.
 
 HTTP endpoints (usable by Stream Deck / Bitfocus Companion):
-  GET /up    – trigger the UP relay
-  GET /down  – trigger the DOWN relay
+  GET /up    – trigger the North UP relay
+  GET /down  – trigger the North DOWN relay
+  GET /up2   – trigger the South UP relay
+  GET /down2 – trigger the South DOWN relay
   GET /      – serve the manual-control web page
 """
 
@@ -55,21 +59,23 @@ except (ImportError, RuntimeError):
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-UP_PIN = 17          # BCM 17 – physical pin 11
-DOWN_PIN = 27        # BCM 27 – physical pin 13
+NORTH_UP_PIN = 17        # BCM 17 – physical pin 11
+NORTH_DOWN_PIN = 27      # BCM 27 – physical pin 13
+SOUTH_UP_PIN = 22        # BCM 22 – physical pin 15
+SOUTH_DOWN_PIN = 23      # BCM 23 – physical pin 16
 RELAY_PULSE_SECONDS = 1  # how long each relay stays energised
 
 # ---------------------------------------------------------------------------
 # GPIO initialisation
 # ---------------------------------------------------------------------------
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(UP_PIN, GPIO.OUT)
-GPIO.setup(DOWN_PIN, GPIO.OUT)
-GPIO.output(UP_PIN, GPIO.LOW)
-GPIO.output(DOWN_PIN, GPIO.LOW)
+for _pin in (NORTH_UP_PIN, NORTH_DOWN_PIN, SOUTH_UP_PIN, SOUTH_DOWN_PIN):
+    GPIO.setup(_pin, GPIO.OUT)
+    GPIO.output(_pin, GPIO.LOW)
 
-# Lock prevents overlapping relay pulses
-_relay_lock = threading.Lock()
+# Separate locks prevent overlapping relay pulses per projector
+_north_relay_lock = threading.Lock()
+_south_relay_lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Application
@@ -77,7 +83,7 @@ _relay_lock = threading.Lock()
 app = Flask(__name__)
 
 
-def _trigger_async(pin: int) -> bool:
+def _trigger_async(pin: int, lock: threading.Lock) -> bool:
     """
     Start a relay pulse in a background thread.
 
@@ -85,7 +91,7 @@ def _trigger_async(pin: int) -> bool:
     The thread is *not* a daemon so the pulse always completes even if the main
     process begins to shut down.
     """
-    if not _relay_lock.acquire(blocking=False):
+    if not lock.acquire(blocking=False):
         return False
     # Lock was acquired; release it inside the thread after the pulse.
     def _run() -> None:
@@ -94,7 +100,7 @@ def _trigger_async(pin: int) -> bool:
             time.sleep(RELAY_PULSE_SECONDS)
             GPIO.output(pin, GPIO.LOW)
         finally:
-            _relay_lock.release()
+            lock.release()
 
     t = threading.Thread(target=_run, daemon=False)
     t.start()
@@ -108,18 +114,34 @@ def index():
 
 @app.route("/up", methods=["GET", "POST"])
 def relay_up():
-    """Trigger the UP relay (raises the screen)."""
-    if not _trigger_async(UP_PIN):
+    """Trigger the North UP relay (raises the north screen)."""
+    if not _trigger_async(NORTH_UP_PIN, _north_relay_lock):
         return jsonify({"status": "busy", "action": "up"}), 409
     return jsonify({"status": "ok", "action": "up"})
 
 
 @app.route("/down", methods=["GET", "POST"])
 def relay_down():
-    """Trigger the DOWN relay (lowers the screen)."""
-    if not _trigger_async(DOWN_PIN):
+    """Trigger the North DOWN relay (lowers the north screen)."""
+    if not _trigger_async(NORTH_DOWN_PIN, _north_relay_lock):
         return jsonify({"status": "busy", "action": "down"}), 409
     return jsonify({"status": "ok", "action": "down"})
+
+
+@app.route("/up2", methods=["GET", "POST"])
+def relay_up2():
+    """Trigger the South UP relay (raises the south screen)."""
+    if not _trigger_async(SOUTH_UP_PIN, _south_relay_lock):
+        return jsonify({"status": "busy", "action": "up2"}), 409
+    return jsonify({"status": "ok", "action": "up2"})
+
+
+@app.route("/down2", methods=["GET", "POST"])
+def relay_down2():
+    """Trigger the South DOWN relay (lowers the south screen)."""
+    if not _trigger_async(SOUTH_DOWN_PIN, _south_relay_lock):
+        return jsonify({"status": "busy", "action": "down2"}), 409
+    return jsonify({"status": "ok", "action": "down2"})
 
 
 if __name__ == "__main__":

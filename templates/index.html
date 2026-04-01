@@ -16,6 +16,7 @@
       background: #1a1a2e;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #eee;
+      padding: 2rem 1rem;
     }
 
     h1 {
@@ -25,9 +26,33 @@
       text-transform: uppercase;
     }
 
+    .projector-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .projector-section {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+    }
+
+    .projector-section h2 {
+      text-align: center;
+      font-size: 1.1rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+      color: #aac4e0;
+    }
+
     .controls {
       display: flex;
       gap: 2rem;
+      justify-content: center;
     }
 
     .btn {
@@ -94,24 +119,46 @@
 <body>
   <h1>Projector Screen</h1>
 
-  <div class="controls">
-    <!-- Up button -->
-    <button class="btn btn-up" id="btnUp" onclick="triggerRelay('up')">
-      <!-- chevron-up icon -->
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/>
-      </svg>
-      Up
-    </button>
+  <div class="projector-sections">
 
-    <!-- Down button -->
-    <button class="btn btn-down" id="btnDown" onclick="triggerRelay('down')">
-      <!-- chevron-down icon -->
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
-      </svg>
-      Down
-    </button>
+    <!-- North Projector -->
+    <div class="projector-section">
+      <h2>North Projector</h2>
+      <div class="controls">
+        <button class="btn btn-up" id="btnNorthUp" onclick="triggerRelay('up', 'north')">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/>
+          </svg>
+          Up
+        </button>
+        <button class="btn btn-down" id="btnNorthDown" onclick="triggerRelay('down', 'north')">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+          </svg>
+          Down
+        </button>
+      </div>
+    </div>
+
+    <!-- South Projector -->
+    <div class="projector-section">
+      <h2>South Projector</h2>
+      <div class="controls">
+        <button class="btn btn-up" id="btnSouthUp" onclick="triggerRelay('up2', 'south')">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/>
+          </svg>
+          Up
+        </button>
+        <button class="btn btn-down" id="btnSouthDown" onclick="triggerRelay('down2', 'south')">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+          </svg>
+          Down
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <div id="status"></div>
@@ -119,20 +166,32 @@
   <script>
     const lockoutMs = 1200; // a bit longer than the 1-second relay pulse
 
-    function triggerRelay(action) {
-      const btnUp   = document.getElementById('btnUp');
-      const btnDown = document.getElementById('btnDown');
+    const sections = {
+      north: ['btnNorthUp', 'btnNorthDown'],
+      south: ['btnSouthUp', 'btnSouthDown'],
+    };
+
+    function triggerRelay(action, section) {
+      const [upId, downId] = sections[section];
+      const btnUp   = document.getElementById(upId);
+      const btnDown = document.getElementById(downId);
       const status  = document.getElementById('status');
 
       btnUp.disabled   = true;
       btnDown.disabled = true;
-      status.textContent = action === 'up' ? '▲ Raising screen…' : '▼ Lowering screen…';
+
+      const label = section === 'north' ? 'North' : 'South';
+      status.textContent = action.startsWith('up')
+        ? `▲ Raising ${label} screen…`
+        : `▼ Lowering ${label} screen…`;
 
       fetch('/' + action, { method: 'POST' })
         .then(r => r.json())
         .then(data => {
           status.textContent = data.status === 'ok'
-            ? (action === 'up' ? '▲ Up command sent' : '▼ Down command sent')
+            ? (action.startsWith('up')
+                ? `▲ ${label} Up command sent`
+                : `▼ ${label} Down command sent`)
             : 'Error: ' + JSON.stringify(data);
         })
         .catch(() => {
